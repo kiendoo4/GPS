@@ -8,6 +8,8 @@ from templates import Template
 import uuid
 import copy
 import torch
+import shutil
+import subprocess
 
 os.environ['MKL_THREADING_LAYER'] = 'GNU'
 EN_TASK = ['hellaswag', 'super_glue/copa', 'anli/r1', 'anli/r2', 'anli/r3', 'super_glue/rte',
@@ -46,7 +48,7 @@ def _dump_json(path, data, beautiful=False):
                 f.write(json.dumps(i, ensure_ascii=False, indent=4) + '\n')
             else:
                 f.write(json.dumps(i, ensure_ascii=False) + '\n')
-    print("{} success dumped!".format(path))
+    # print("{} success dumped!".format(path))
 
 
 def _dump_template(path, template):
@@ -82,29 +84,58 @@ def read_task_template(task_config_dir, task_names):
 def augment_prompt(input_dir, output_dir, device='0,1', mode='t0'):
     """generate new prompts for each task"""
     if mode == 't0':
-        return os.system(f'CUDA_VISIBLE_DEVICES={device} python ./dino/use_dino_to_generate_template_t5.py \
-                                    --model_name ./pretrained_model/t5-xxl-lm-adapt \
-                                    --input_dir {input_dir} \
-                                    --task_list_file ./config/test.list \
-                                    --output_dir {output_dir} ')
+        os.environ['CUDA_VISIBLE_DEVICES'] = device  # Set CUDA devices here for Windows compatibility
+        return os.system(f'python ./dino/use_dino_to_generate_template_t5.py \
+                                        --model_name ./pretrained_model/t5-xl-lm-adapt \
+                                        --input_dir {input_dir} \
+                                        --task_list_file ./config/test.list \
+                                        --output_dir {output_dir}')
     else:
         raise NotImplementedError
 
 
 def run_test(config_dir, exp_dir, device='0,1'):
-    cache_config_dir = os.path.join(exp_dir, 'ga_configs/cache')
-    cache_eval_dir = os.path.join(exp_dir, 'ga_evals/cache')
-    os.system(f'rm -rf {cache_config_dir}/*')
-    os.system(f'cp -r {config_dir}/* {cache_config_dir}')
-    os.system(   # TODO: DEBUG
-        f'CUDA_VISIBLE_DEVICES={device} python ./run_all_eval.py \
-            --test_split ./config/test.list \
-            --model_name_or_path ./pretrained_model/T0 \
-            --template_dir {cache_config_dir} \
-            --dataset_type ga \
-            --ga_dev_distribution ratio \
-            --parallelize \
-            --output_dir {cache_eval_dir} ')
+    cache_config_dir = os.path.join(exp_dir, 'ga_configs', 'cache')
+    cache_eval_dir = os.path.join(exp_dir, 'ga_evals', 'cache')
+
+    # Clear the cache directory
+    if os.path.exists(cache_config_dir):
+        shutil.rmtree(cache_config_dir)
+    os.makedirs(cache_config_dir)
+
+    # Copy configuration files
+    shutil.copytree(config_dir, cache_config_dir, dirs_exist_ok=True)
+
+    # Print structure of cache_config_dir
+    print("Structure of cache_config_dir after copy:")
+    # for root, dirs, files in os.walk(cache_config_dir):
+    #     print(root, dirs, files)
+
+    # Set the CUDA_VISIBLE_DEVICES environment variable
+    os.environ["CUDA_VISIBLE_DEVICES"] = device
+    # print("CUDA_VISIBLE_DEVICES set to:", os.environ["CUDA_VISIBLE_DEVICES"])
+
+    # Execute the evaluation script
+    command = (
+        f'python ./run_all_eval.py '
+        f'--test_split ./config/test.list '
+        f'--model_name_or_path ./pretrained_model/T0_3B '
+        f'--template_dir {cache_config_dir} '
+        f'--dataset_type ga '
+        f'--ga_dev_distribution ratio '
+        f'--parallelize '
+        f'--output_dir {cache_eval_dir}'
+    )
+
+    print("Running evaluation script:")
+    exit_code = os.system(command)
+    print(f"Script exited with code {exit_code}")
+
+    # Print structure of cache_eval_dir after script execution
+    # print("Structure of cache_eval_dir after script execution:")
+    # for root, dirs, files in os.walk(cache_eval_dir):
+    #     print(root, dirs, files)
+
 
 
 def check_configs(exp_dir, step):
@@ -199,19 +230,19 @@ def ga_process(exp_dir, max_steps=1, device='0,1', mode='t0'):
         for task in TASKS:
             # note: k is different for different tasks
             top_K = TOP_K_for_each_task[task]
-            print(f'Select top {top_K} template for task {task}')
+            # print(f'Select top {top_K} template for task {task}')
 
             filter_task_config = copy.deepcopy(current_configs[task])
             filter_task_config['templates'] = {}
 
             task_obj = dev_result[task][f'step_{ga_step}']
-            print(f'debug: task_obj for {task} as step {ga_step}: {task_obj}')
-            print(f'debug: task_obj.keys(): {task_obj.keys()}')
-            print(f'debug: current_configs: {current_configs[task]["templates"]}')
-            print(f'debug: current_configs[task][templates].keys(): {current_configs[task]["templates"].keys()}')
+            # print(f'debug: task_obj for {task} as step {ga_step}: {task_obj}')
+            # print(f'debug: task_obj.keys(): {task_obj.keys()}')
+            # print(f'debug: current_configs: {current_configs[task]["templates"]}')
+            # print(f'debug: current_configs[task][templates].keys(): {current_configs[task]["templates"].keys()}')
             aug_pattern_list = [template_id for template_id in task_obj.keys() if
                                 template_id in current_configs[task]['templates'].keys()]
-            print(f'debug: aug_pattern_list: {aug_pattern_list}')
+            # print(f'debug: aug_pattern_list: {aug_pattern_list}')
             aug_pattern_list.sort(key=lambda x: task_obj.get(x), reverse=True)
             select_prompt[task][f'step_{ga_step}'] = aug_pattern_list[:top_K]
             for origin_pattern in aug_pattern_list[:top_K]:
@@ -239,7 +270,7 @@ def ga_process(exp_dir, max_steps=1, device='0,1', mode='t0'):
                 break
         print(f'ga_step:{ga_step} filter and augment has done ')
 
-    print('starting merge result configs...')
+    # print('starting merge result configs...')
     result_dir = os.path.join(config_dir, f'result_{max_steps}')
     if not os.path.exists(result_dir):
         os.mkdir(result_dir)
@@ -300,9 +331,15 @@ def ga_process(exp_dir, max_steps=1, device='0,1', mode='t0'):
 
 
 def step_0_prompts(step_0_dir):
-    spcific_dir = './templates'
+    specific_dir = './templates'
 
-    os.system(f'cp -rf {spcific_dir}/* {step_0_dir}')
+    for item in os.listdir(specific_dir):
+        s = os.path.join(specific_dir, item)
+        d = os.path.join(step_0_dir, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, dirs_exist_ok=True)
+        else:
+            shutil.copy2(s, d)
 
 
 if __name__ == '__main__':
@@ -322,4 +359,4 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(exp_dir, 'ga_evals', 'cache'))
         os.mkdir(os.path.join(exp_dir, 'tensorboard_unified'))
 
-    ga_process(exp_dir=exp_dir, max_steps=9, device=device, mode=task_mode)
+    ga_process(exp_dir=exp_dir, max_steps=8, device=device, mode=task_mode)
