@@ -8,14 +8,19 @@ GPS is an automatic prompt search method based on genetic algorithm for better f
 
 ![](./GPS.png)
 
-In this paper, we introduce Genetic Prompt Search (GPS) to improve few-shot learning with prompts, which utilizes a genetic algorithm to automatically search for high-performing prompts. GPS is gradient-free and requires no update of model parameters but only a small validation set.
+In the paper, they introduce Genetic Prompt Search (GPS) to improve few-shot learning with prompts, which utilizes a genetic algorithm to automatically search for high-performing prompts. GPS is gradient-free and requires no update of model parameters but only a small validation set.
 
 You can find more details of this work in [GPS][1].
 
 [1]: https://arxiv.org/abs/2210.17041 "GPS"
 
+We replicated the experimental setup of the original paper using smaller pre-trained language models, specifically T0-3B and T5-XL. While the authors conducted nine iterations, we were limited by computational resources and thus performed eight iterations.
 
-## How to reproduce our results
+Our result is represented in this table:
+
+![](./result.png)
+
+## How to reproduce their results
 1. Install dependencies:
    * transformers==4.15
    * datasets==1.16
