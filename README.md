@@ -20,14 +20,6 @@ Our result was showed in this table:
 
 ![](./result.png)
 
-Our enquiry was represented in this slide: ```./__CS410_O21__Đồ_án_cuối_kỳ___GPS.pdf``` (Vietnamese ver)
-
-My collaborators: [duong28022003][2], [HatakaCder][3], [LuongDaiPhat][4]
-
-[2]: https://github.com/duong28022003 "duong28022003"
-[3]: https://github.com/HatakaCder "HatakaCder"
-[4]: https://github.com/luongdaiphat "LuongDaiPhat"
-
 ## How to reproduce their results
 1. Install dependencies:
    * transformers==4.15
